@@ -104,7 +104,6 @@
         <input type="text" id="ausweisnummer" placeholder="z.B. L01X00T47 und +49">
         <button onclick="showPersonendaten()">Kopieren und bei WhatsApp senden</button>
         <div id="output"></div>
-        <button id="copyOutputButton" style="display:none">Daten kopieren</button>
     </div>
 
     <script>
@@ -124,7 +123,6 @@
                 { id: 'ausweisnummer', label: 'Ausweisnummer und Landesvorwahl' }
             ];
 
-            const outputDiv = document.getElementById('output');
             let outputText = '';
             let hasEmptyField = false;
 
@@ -142,54 +140,40 @@
             });
 
             if (hasEmptyField) {
+                const outputDiv = document.getElementById('output');
                 outputDiv.textContent = 'Bitte fülle alle Felder aus!';
                 outputDiv.className = 'error';
                 return;
             }
 
-            outputDiv.textContent = '';
-            outputDiv.className = '';
-            document.getElementById('copyOutputButton').style.display = 'block';
+            try {
+                await navigator.clipboard.writeText(outputText);
+                const outputDiv = document.getElementById('output');
+                outputDiv.textContent = 'Die Daten wurden kopiert und an WhatsApp übergeben.';
+                outputDiv.className = 'success';
+            } catch (err) {
+                // Fallback für ältere oder eingeschränkte Browser
+                const textarea = document.createElement('textarea');
+                textarea.value = outputText;
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    document.execCommand('copy');
+                    const outputDiv = document.getElementById('output');
+                    outputDiv.textContent = 'Die Daten wurden (Fallback) kopiert und an WhatsApp übergeben.';
+                    outputDiv.className = 'success';
+                } catch (err2) {
+                    const outputDiv = document.getElementById('output');
+                    outputDiv.textContent = 'Konnte nicht kopieren. Bitte manuell kopieren.';
+                    outputDiv.className = 'error';
+                }
+                document.body.removeChild(textarea);
+            }
 
             const encodedText = encodeURIComponent(outputText);
             const whatsappLink = `https://wa.me/?text=${encodedText}`;
             window.open(whatsappLink, '_blank');
-
-            try {
-                await navigator.clipboard.writeText(outputText);
-                const successMessage = document.createElement('div');
-                successMessage.textContent = 'Daten erfolgreich in die Zwischenablage kopiert!';
-                successMessage.className = 'success';
-                outputDiv.appendChild(successMessage);
-                setTimeout(() => {
-                    successMessage.remove();
-                }, 3000);
-            } catch (err) {
-                // Fehler beim Kopieren ignorieren
-            }
         }
-
-        document.getElementById('copyOutputButton').addEventListener('click', () => {
-            const range = document.createRange();
-            const outputDiv = document.getElementById('output');
-            range.selectNodeContents(outputDiv);
-            const selection = window.getSelection();
-            selection.removeAllRanges();
-            selection.addRange(range);
-            try {
-                document.execCommand('copy');
-                const successMessage = document.createElement('div');
-                successMessage.textContent = 'Daten erfolgreich in die Zwischenablage kopiert!';
-                successMessage.className = 'success';
-                outputDiv.appendChild(successMessage);
-                setTimeout(() => {
-                    successMessage.remove();
-                }, 3000);
-            } catch (err) {
-                // kein Fehlertext anzeigen
-            }
-            selection.removeAllRanges();
-        });
     </script>
 </body>
 </html>
