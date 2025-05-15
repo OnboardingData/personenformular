@@ -102,7 +102,7 @@
         <input type="text" id="telefon" placeholder="z.B. +49123456789">
         <label for="ausweisnummer">Ausweisnummer und Landesvorwahl</label>
         <input type="text" id="ausweisnummer" placeholder="z.B. L01X00T47 und +49">
-        <button onclick="showPersonendaten()">Ausgabe</button>
+        <button onclick="showPersonendaten()">Kopieren und bei WhatsApp senden</button>
         <div id="output"></div>
         <button id="copyOutputButton" style="display:none">Daten kopieren</button>
     </div>
@@ -147,7 +147,7 @@
                 return;
             }
 
-            outputDiv.textContent = outputText;
+            outputDiv.textContent = '';
             outputDiv.className = '';
             document.getElementById('copyOutputButton').style.display = 'block';
 
