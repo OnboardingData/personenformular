@@ -1,898 +1,179 @@
-
-
-
-# Installieren Sie die erforderlichen Bibliotheken, falls noch nicht geschehen.
-# python-docx wird zum Erstellen und Ändern von Microsoft Word .docx-Dateien verwendet.
-!pip install python-docx
-!pip install google-generativeai
-
-import ipywidgets as widgets # Wird verwendet, um interaktive GUI-Elemente wie Texteingaben und Schaltflächen zu erstellen.
-from IPython.display import display, Markdown, clear_output # Wird verwendet, um Markdown-formatierten Text in Colab anzuzeigen.
-from docx import Document # Hauptklasse von python-docx zum Erstellen eines neuen Word-Dokuments.
-from docx.shared import Inches, Pt, RGBColor # Wird zur Angabe von Maßen in Zoll/Punkten und für Text-/Hintergrundfarben verwendet.
-from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING # Wird für die Textausrichtung (z. B. zentriert, links, rechts) und den Zeilenabstand verwendet.
-from docx.oxml.ns import qn # Wird für die XML-Bearbeitung zum Entfernen von Tabellenrändern verwendet.
-from docx.oxml import OxmlElement # Wird für die XML-Bearbeitung zum Entfernen von Tabellenrändern verwendet.
-from docx.enum.table import WD_ALIGN_VERTICAL # Wird für die vertikale Ausrichtung in Tabellenzellen verwendet.
-from google.colab import files, userdata # Wird in Google Colab verwendet, um Dateidownloads zu ermöglichen und auf Secrets zuzugreifen.
-from datetime import datetime # Wird verwendet, um das aktuelle Datum zu erhalten.
-import re # Wird für reguläre Ausdrücke verwendet, z. B. um Text aus Klammern zu extrahieren.
-import google.generativeai as genai
-import time # Importiert die time-Bibliothek für die Verzögerung
-
-# ==============================================================================
-# API-Schlüssel-Konfiguration
-# ==============================================================================
-# API-Schlüssel aus Colab Secrets laden.
-# Stellen Sie sicher, dass der Schlüssel unter dem Namen 'GOOGLE_API_KEY' gespeichert ist.
-try:
-    api_key = userdata.get('GOOGLE_API_KEY')
-    genai.configure(api_key=api_key)
-    ai_enabled = True
-    # Aktualisiertes Modell für bessere Leistung und Zuverlässigkeit
-    model = genai.GenerativeModel('gemini-2.5-flash')
-except Exception as e:
-    ai_enabled = False
-    # Diese Nachricht wird unter den UI-Elementen angezeigt
-    ai_error_message = widgets.HTML("API-Schlüssel konnte nicht geladen werden. Die KI-Funktionen sind deaktiviert. "
-                                    "Stellen Sie sicher, dass Sie den Schlüssel in den Colab Secrets (🔑) unter dem Namen 'GOOGLE_API_KEY' gespeichert haben.")
-
-# Ursprüngliche Lebenslaufdaten, die aus dem DOCX-Inhalt geparst wurden
-# Die Daten sind so strukturiert, dass der Name einfach aktualisiert und Markdown generiert werden kann.
-original_resume_data = {
-    "MITARBEITER": {
-        "Mitarbeiter": "Edin Beharovic",
-        "Stand": "AUTOMATIC", # Wird automatisch mit dem aktuellen Monat/Jahr gefüllt
-        "Geburtsjahr": "03.05.1999", # Anfangswert, jetzt bearbeitbar
-        "Position": "AUTOMATIC", # Wird automatisch aus Projektrollen gefüllt
-        "Ausbildung / Studium": "Abitur", # Standardwert auf Abitur geändert
-        "Berufserfahrung in der IT seit": "AUTOMATIC", # Wird automatisch aus dem frühesten Projektdatum gefüllt
-        "Einsatz in Branchen": "AUTOMATIC", # Wird automatisch aus Projektbranchen gefüllt
-        "Fremdsprachen": "Deutsch (Muttersprache), Englisch (sehr gute Kenntnisse),", # Anfangswert, jetzt bearbeitbar
-        "Nationalität": "Deutsch", # Anfangswert, jetzt über Checkbox gesteuert
-        "Führerschein": "Klasse B" # Anfangswert, jetzt über Checkbox gesteuert
-    },
-    # AKTUALISIERT IT-FACHWISSEN UND SCHWERPUNKTE zur Unterstützung des Blasenformats
-    "IT-FACHWISSEN UND SCHWERPUNKTE": {
-        "Hardware": ["PC", "Notebook", "Drucker", "Monitor", "Dell", "HP", "Lenovo", "Cisco", "Zebra", "Barcodescanner", "Kassensysteme"],
-        "Netzwerk": ["LAN", "WLAN", "IPv4", "IPv6", "VPN", "DNS", "DHCP", "Active Directory"],
-        "Software": ["MS Office 365", "ServiceNow", "JIRA", "SAP", "Veeam", "TeamViewer", "Zoom", "MS Teams", "PowerShell"],
-        "Betriebssysteme": ["Windows 7", "Windows 10", "Windows 11", "macOS", "Linux"]
-    },
-    "PROJEKTE": [
-        {
-            "ZEITRAUM": "10/2023 - 11/2024",
-            "Projektrolle": "Onsite Support",
-            "Kurzbeschreibung": [
-                "Bearbeitung von IT-Supportanfragen und Störungen",
-                "Lösung von technischen Problemen im Bereich Hardware und Software",
-                "Installation und Konfiguration von Desktop- und Laptop-Computern",
-                "Unterstützung der Anwender bei technischen Fragestellungen",
-                "Durchführung von Wartungs- und Reparaturarbeiten an IT-Geräten",
-                "Verwaltung von Benutzerrechten und Zugriffskontrollen",
-                "Durchführung von Systemupdates und Patch-Management",
-                "Verwaltung und Konfiguration von Druckern und Scannern",
-                "Verwaltung von VPN- und Remote-Access-Verbindungen",
-                "Durchführung von regelmäßigen Datensicherungen",
-                "Verwaltung und Support von mobilen Endgeräten",
-                "Unterstützung bei der Implementierung von IT-Sicherheitsrichtlinien",
-                "Erstellung von technischen Dokumentationen und Handbüchern",
-                "Zusammenarbeit mit dem IT-Team zur Verbesserung der IT-Dienste",
-                "Einrichtung und Verwaltung von Videokonferenzsystemen",
-                "Aufbau, Installation und Verkabelung von Routern, Switches und weiteren Netzwerkgeräten in Serverschränken"
-            ],
-            "BRANCHE": "Automatisierung (Rittal GmbH & Co. KG)"
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personendaten Eingabe mit Kopieren</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            padding: 20px;
         }
-    ]
-}
-
-# Globale Liste zur Aufnahme von Widget-Instanzen für jedes Projekt
-project_widgets_list = []
-# Globales Wörterbuch zur Aufnahme von Widget-Instanzen für IT-Kenntnisse
-it_skills_widgets = {}
-# Globales Wörterbuch zur Aufnahme von Widget-Instanzen für den Mitarbeiter-Abschnitt
-mitarbeiter_widgets = {}
-
-# Container für Projekt-Widgets, der dynamisch aktualisiert wird
-project_widgets_container = widgets.VBox()
-# Container für den neuen Generierungs-Dialog
-generation_setup_container = widgets.VBox(layout=widgets.Layout(display='none'))
-
-
-def parse_date_string(date_str):
-    """
-    Parst einen Datumsstring (MM/JJJJ) in ein datetime-Objekt.
-    Behandelt 'Aktuell' oder 'AUTOMATIC', indem ein sehr spätes Datum zurückgegeben wird.
-    """
-    date_str = date_str.strip()
-    if date_str.lower() in ["aktuell", "automatic"]:
-        return datetime(9999, 12, 31) # Ein sehr spätes Datum, um sicherzustellen, dass "Aktuell"-Projekte zuerst sortiert werden
-    try:
-        month, year = map(int, date_str.split('/'))
-        return datetime(year, month, 1)
-    except ValueError:
-        return datetime.min # Gibt ein sehr frühes Datum für nicht parsebare Daten zurück
-
-def get_project_sort_key(project_data):
-    """
-    Erzeugt einen Sortierschlüssel für ein Projekt basierend auf seinem ZEITRAUM.
-    Sortiert nach Enddatum (absteigend), dann nach Startdatum (absteigend).
-    Behandelt 'Aktuell' als das aktuellste Enddatum.
-    """
-    zeitraum_str = project_data['ZEITRAUM'].strip()
-    parts = re.split(r'\s*[-–]\s*', zeitraum_str) # Teilt nach Bindestrich oder Gedankenstrich
-
-    start_date_str = parts[0]
-    end_date_str = parts[1] if len(parts) > 1 else start_date_str # Wenn nur ein Datum, als Enddatum verwenden
-
-    # Daten parsen
-    start_date = parse_date_string(start_date_str)
-    end_date = parse_date_string(end_date_str)
-
-    # Gibt ein Tupel zum Sortieren zurück: (end_date, start_date)
-    return (end_date, start_date)
-
-
-def generate_resume_markdown(name, mitarbeiter_data_for_markdown, projects_data_for_markdown, it_skills_data_for_markdown):
-    """
-    Erzeugt den Lebenslauf-Inhalt im Markdown-Format mit dem gegebenen Namen und den Projektdaten.
-    """
-    markdown_output = []
-
-    # MITARBEITER-Abschnitt
-    markdown_output.append("## **MITARBEITER**\n")
-    personal_data_order = [
-        "Mitarbeiter", "Stand", "Geburtsjahr", "Position", "Ausbildung / Studium",
-        "Berufserfahrung in der IT seit", "Einsatz in Branchen", "Fremdsprachen", "Führerschein", "Nationalität"
-    ]
-    for key in personal_data_order:
-        value = mitarbeiter_data_for_markdown.get(key, "")
-        if value: markdown_output.append(f"**{key}:** {value}")
-    markdown_output.append("\n")
-
-    # IT-FACHWISSEN UND SCHWERPUNKTE-Abschnitt
-    markdown_output.append("## **IT-FACHWISSEN UND SCHWERPUNKTE**\n")
-    it_skills_order = ["Hardware", "Netzwerk", "Software", "Betriebssysteme"]
-    for key in it_skills_order:
-        value = " | ".join(it_skills_data_for_markdown[key])
-        if value: markdown_output.append(f"**{key}:** {value}")
-    markdown_output.append("\n")
-
-    # PROJEKTE-Abschnitt
-    markdown_output.append("## **PROJEKTE**\n")
-    for project in projects_data_for_markdown:
-        markdown_output.append(f"**{project['ZEITRAUM']}**")
-        markdown_output.append(f"**Projektrolle:** {project['Projektrolle']}")
-        markdown_output.append("**Kurzbeschreibung:**")
-        for desc_item in project['Kurzbeschreibung']:
-            markdown_output.append(f"      • {desc_item}")
-        markdown_output.append(f"**BRANCHE:** ({project['BRANCHE']})\n")
-
-    return "\n".join(markdown_output)
-
-
-def generate_resume_docx(name, mitarbeiter_data_for_docx, projects_data_for_docx, it_skills_data_for_docx):
-    """
-    Erzeugt den Lebenslauf-Inhalt als Word-Dokument (.docx).
-    """
-    document = Document()
-    section = document.sections[0]
-    section.page_width = Inches(8.27)
-    section.page_height = Inches(11.69)
-    section.top_margin = Inches(0.79)
-    section.bottom_margin = Inches(0.79)
-    section.left_margin = Inches(0.29)
-    section.right_margin = Inches(0.29)
-    style = document.styles['Normal']
-    style.font.name = 'Calibri'
-    style.font.size = Pt(11)
-    style.paragraph_format.space_before = Pt(0)
-    style.paragraph_format.space_after = Pt(0)
-
-    # --- MITARBEITER-Abschnitt ---
-    mitarbeiter_heading = document.add_heading('', level=1)
-    run = mitarbeiter_heading.add_run('MITARBEITER')
-    run.font.size = Pt(14)
-    run.bold = True
-    mitarbeiter_heading.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    mitarbeiter_heading.paragraph_format.space_before = Pt(18)
-    mitarbeiter_heading.paragraph_format.space_after = Pt(6)
-    personal_data_table = document.add_table(rows=0, cols=2)
-    personal_data_table.autofit = False
-    personal_data_table.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    col_key_width = Inches(1.8)
-    col_value_width = Inches(3.5)
-    personal_data_table.columns[0].width = col_key_width
-    personal_data_table.columns[1].width = col_value_width
-    tbl_pr_personal = personal_data_table._element.tblPr
-    tbl_borders_personal = OxmlElement('w:tblBorders')
-    for border_name in ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']:
-        border = OxmlElement(f'w:{border_name}')
-        border.set(qn('w:val'), 'nil')
-        tbl_borders_personal.append(border)
-    tbl_pr_personal.append(tbl_borders_personal)
-    personal_data_order = [
-        "Mitarbeiter", "Stand", "Geburtsjahr", "Position", "Ausbildung / Studium",
-        "Berufserfahrung in der IT seit", "Einsatz in Branchen", "Fremdsprachen", "Führerschein", "Nationalität"
-    ]
-    for key in personal_data_order:
-        value = mitarbeiter_data_for_docx.get(key, "")
-        if not value: continue
-        row_cells = personal_data_table.add_row().cells
-        p_key = row_cells[0].paragraphs[0]
-        for run_to_clear in list(p_key.runs): p_key._element.remove(run_to_clear._element)
-        run_key = p_key.add_run(f"{key}:")
-        run_key.bold = True
-        p_key.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        row_cells[0].vertical_alignment = WD_ALIGN_VERTICAL.TOP
-        p_value = row_cells[1].paragraphs[0]
-        for run_to_clear in list(p_value.runs): p_value._element.remove(p_value._element)
-        p_value.add_run(value)
-        p_value.runs[-1].font.size = Pt(11)
-        p_value.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        row_cells[1].vertical_alignment = WD_ALIGN_VERTICAL.TOP
-    document.add_paragraph()
-
-    # --- IT-FACHWISSEN UND SCHWERPUNKTE-Abschnitt ---
-    it_heading = document.add_heading('', level=1)
-    run = it_heading.add_run('IT-FACHWISSEN UND SCHWERPUNKTE')
-    run.font.size = Pt(14)
-    run.bold = True
-    it_heading.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    it_heading.paragraph_format.space_before = Pt(18)
-    it_heading.paragraph_format.space_after = Pt(6)
-    def create_bubble_run(paragraph, text):
-        run = paragraph.add_run(f" {text} ")
-        run.font.size = Pt(10)
-        run.font.name = 'Calibri'
-        run.font.color.rgb = RGBColor(33, 37, 41)
-        rPr = run._element.get_or_add_rPr()
-        shd = OxmlElement('w:shd')
-        shd.set(qn('w:fill'), 'E8F0FE')
-        rPr.append(shd)
-        return run
-    def add_bubble_list(cell, title, items):
-        p_title = cell.paragraphs[0]
-        for run_to_clear in list(p_title.runs): p_title._element.remove(p_title._element)
-        run_title = p_title.add_run(title)
-        run_title.bold = True
-        p_bubbles = cell.add_paragraph()
-        for item in items:
-            create_bubble_run(p_bubbles, item)
-            p_bubbles.add_run(" ")
-    it_skills_table = document.add_table(rows=2, cols=2)
-    it_skills_table.autofit = False
-    it_skills_table.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    available_content_width = section.page_width - section.left_margin - section.right_margin
-    it_col_width = int(available_content_width / 2)
-    it_skills_table.columns[0].width = it_col_width
-    it_skills_table.columns[1].width = it_col_width
-    for row in it_skills_table.rows:
-        for cell in row.cells: cell.width = it_col_width
-    for r in range(2):
-        for c in range(2):
-            cell = it_skills_table.cell(r, c)
-            for p in cell.paragraphs: cell._element.remove(p._element)
-            cell.add_paragraph()
-    add_bubble_list(it_skills_table.cell(0, 0), "Hardware:", it_skills_data_for_docx["Hardware"])
-    add_bubble_list(it_skills_table.cell(0, 1), "Netzwerk:", it_skills_data_for_docx["Netzwerk"])
-    add_bubble_list(it_skills_table.cell(1, 0), "Software:", it_skills_data_for_docx["Software"])
-    add_bubble_list(it_skills_table.cell(1, 1), "Betriebssysteme:", it_skills_data_for_docx["Betriebssysteme"])
-    document.add_paragraph()
-
-    # --- PROJEKTE-Abschnitt ---
-    projekte_heading = document.add_heading('', level=1)
-    run = projekte_heading.add_run('PROJEKTE')
-    run.font.size = Pt(14)
-    run.bold = True
-    projekte_heading.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    projekte_heading.paragraph_format.space_before = Pt(18)
-    projekte_heading.paragraph_format.space_after = Pt(6)
-    table = document.add_table(rows=1, cols=3)
-    table.autofit = False
-    table.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    col_zeitraum_width = Inches(1.5)
-    col_branche_width = Inches(1.5)
-    col_proj_desc_width = available_content_width - col_zeitraum_width - col_branche_width
-    table.columns[0].width = col_zeitraum_width
-    table.columns[1].width = col_proj_desc_width
-    table.columns[2].width = col_branche_width
-    for row in table.rows:
-        row.cells[0].width = col_zeitraum_width
-        row.cells[1].width = col_proj_desc_width
-        row.cells[2].width = col_branche_width
-    hdr_cells = table.rows[0].cells
-    run_zeitraum_hdr = hdr_cells[0].paragraphs[0].add_run('ZEITRAUM')
-    run_zeitraum_hdr.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
-    run_zeitraum_hdr.bold = True
-    hdr_cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.LEFT
-    shading_elm_zeitraum = OxmlElement('w:shd')
-    shading_elm_zeitraum.set(qn('w:fill'), '6B6B6B')
-    hdr_cells[0]._tc.get_or_add_tcPr().append(shading_elm_zeitraum)
-    run_projdesc_hdr = hdr_cells[1].paragraphs[0].add_run('PROJEKTBESCHREIBUNG')
-    run_projdesc_hdr.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
-    run_projdesc_hdr.bold = True
-    hdr_cells[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.LEFT
-    shading_elm_projdesc = OxmlElement('w:shd')
-    shading_elm_projdesc.set(qn('w:fill'), '6B6B6B')
-    hdr_cells[1]._tc.get_or_add_tcPr().append(shading_elm_projdesc)
-    run_branche_hdr = hdr_cells[2].paragraphs[0].add_run('BRANCHE')
-    run_branche_hdr.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
-    run_branche_hdr.bold = True
-    hdr_cells[2].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    shading_elm_branche = OxmlElement('w:shd')
-    shading_elm_branche.set(qn('w:fill'), '6B6B6B')
-    hdr_cells[2]._tc.get_or_add_tcPr().append(shading_elm_branche)
-    tbl_pr = table._element.tblPr
-    tbl_borders = OxmlElement('w:tblBorders')
-    for border_name in ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']:
-        border = OxmlElement(f'w:{border_name}')
-        border.set(qn('w:val'), 'nil')
-        tbl_borders.append(border)
-    tbl_pr.append(tbl_borders)
-    for i, project in enumerate(projects_data_for_docx):
-        row_cells = table.add_row().cells
-        row_cells[0].width = col_zeitraum_width
-        row_cells[1].width = col_proj_desc_width
-        row_cells[2].width = col_branche_width
-        p_zeitraum = row_cells[0].paragraphs[0]
-        run_zeitraum = p_zeitraum.add_run(project['ZEITRAUM'])
-        run_zeitraum.bold = True
-        run_zeitraum.font.size = Pt(11)
-        p_zeitraum.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        row_cells[0].vertical_alignment = WD_ALIGN_VERTICAL.TOP
-        cell_2 = row_cells[1]
-        for p in cell_2.paragraphs: cell_2._element.remove(p._element)
-        p_rolle = cell_2.add_paragraph()
-        run_rolle_label = p_rolle.add_run('Projektrolle: ')
-        run_rolle_label.bold = True
-        run_rolle_label.font.color.rgb = RGBColor(0x36, 0x60, 0x92)
-        run_rolle_label.font.size = Pt(11)
-        p_rolle.add_run(project['Projektrolle'])
-        p_rolle.runs[-1].font.size = Pt(11)
-        p_rolle.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        p_rolle.paragraph_format.space_after = Pt(3)
-        p_kurzb = cell_2.add_paragraph()
-        run_kurzb_label = p_kurzb.add_run('Kurzbeschreibung:')
-        run_kurzb_label.bold = True
-        run_kurzb_label.font.color.rgb = RGBColor(0x36, 0x60, 0x92)
-        run_kurzb_label.font.size = Pt(11)
-        p_kurzb.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        p_kurzb.paragraph_format.space_after = Pt(3)
-        for desc_item in project['Kurzbeschreibung']:
-            p_desc_item = cell_2.add_paragraph()
-            p_desc_item.paragraph_format.left_indent = Inches(0.3)
-            p_desc_item.paragraph_format.first_line_indent = Inches(-0.15)
-            p_desc_item.add_run("• ")
-            run_desc_item = p_desc_item.add_run(desc_item)
-            run_desc_item.font.size = Pt(11)
-            p_desc_item.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
-            p_desc_item.paragraph_format.space_after = Pt(2)
-        row_cells[1].vertical_alignment = WD_ALIGN_VERTICAL.TOP
-        p_branche = row_cells[2].paragraphs[0]
-        run_branche = p_branche.add_run(project['BRANCHE'])
-        run_branche.font.size = Pt(11)
-        p_branche.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        row_cells[2].vertical_alignment = WD_ALIGN_VERTICAL.TOP
-        if i < len(projects_data_for_docx) - 1:
-            spacer_row = table.add_row()
-            spacer_cells = spacer_row.cells
-            spacer_cells[0].width = col_zeitraum_width
-            spacer_cells[1].width = col_proj_desc_width
-            spacer_cells[2].width = col_branche_width
-            for cell in spacer_cells:
-                tcPr = cell._tc.get_or_add_tcPr()
-                tcBorders = OxmlElement('w:tcBorders')
-                for border_name in ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']:
-                    border = OxmlElement(f'w:{border_name}')
-                    border.set(qn('w:val'), 'nil')
-                    tcBorders.append(border)
-                tcPr.append(tcBorders)
-                if not cell.paragraphs: cell.add_paragraph()
-                p_spacer = cell.paragraphs[0]
-                for run_to_clear in list(p_spacer.runs): p_spacer._element.remove(p_spacer._element)
-                p_spacer.paragraph_format.space_after = Pt(12)
-                p_spacer.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
-    return document
-
-def on_download_button_click(b):
-    """
-    Behandelt das Klick-Ereignis der Download-Schaltfläche.
-    """
-    with resume_output:
-        clear_output(wait=True)
-        print("Generiere Word-Dokument...")
-    current_name = name_input.value
-    current_mitarbeiter_data_for_docx = {
-        "Mitarbeiter": current_name,
-        "Stand": datetime.now().strftime("%m/%Y"),
-        "Geburtsjahr": mitarbeiter_widgets['Geburtsjahr'].value,
-        "Ausbildung / Studium": mitarbeiter_widgets['Ausbildung / Studium'].value,
-        "Fremdsprachen": mitarbeiter_widgets['Fremdsprachen'].value,
-        "Nationalität": mitarbeiter_widgets['Nationalität'].value,
-        "Führerschein": "Klasse B" if mitarbeiter_widgets['Führerschein'].value else ""
-    }
-    all_project_roles = set()
-    all_branches = set()
-    earliest_date = None
-    sorted_projects_for_data_processing = sorted([
-        {
-            'ZEITRAUM': pw_dict['ZEITRAUM'].value,
-            'Projektrolle': pw_dict['Projektrolle'].value,
-            'Kurzbeschreibung': [line.strip() for line in pw_dict['Kurzbeschreibung'].value.split('\n') if line.strip()],
-            'BRANCHE': pw_dict['BRANCHE'].value
-        } for pw_dict in project_widgets_list
-    ], key=get_project_sort_key, reverse=True)
-    for project_data in sorted_projects_for_data_processing:
-        zeitraum_str = project_data['ZEITRAUM'].strip()
-        start_date_str = ''
-        if ' - ' in zeitraum_str:
-            start_date_str = zeitraum_str.split(' - ')[0].strip()
-        elif ' – ' in zeitraum_str:
-            start_date_str = zeitraum_str.split(' – ')[0].strip()
-        if start_date_str:
-            try:
-                month, year = map(int, start_date_str.split('/'))
-                current_project_date = datetime(year, month, 1)
-                if earliest_date is None or current_project_date < earliest_date:
-                    earliest_date = current_project_date
-            except ValueError: pass
-        if project_data['Projektrolle']: all_project_roles.add(project_data['Projektrolle'])
-        if project_data['BRANCHE']:
-            cleaned_branch = re.sub(r'\s*
-', '', project_data['BRANCHE']).strip()
-            if cleaned_branch: all_branches.add(cleaned_branch)
-    current_mitarbeiter_data_for_docx["Position"] = ", ".join(sorted(list(all_project_roles)))
-    current_mitarbeiter_data_for_docx["Berufserfahrung in der IT seit"] = earliest_date.strftime("%m/%Y") if earliest_date else "N/A"
-    current_mitarbeiter_data_for_docx["Einsatz in Branchen"] = ", ".join(sorted(list(all_branches)))
-    current_it_skills_data_for_docx = {}
-    for key, widget in it_skills_widgets.items():
-        current_it_skills_data_for_docx[key] = [line.strip() for line in widget.value.split('\n') if line.strip()]
-    document = generate_resume_docx(current_name, current_mitarbeiter_data_for_docx, sorted_projects_for_data_processing, current_it_skills_data_for_docx)
-    file_name = f"Lebenslauf_{current_name.replace(' ', '_')}.docx"
-    document.save(file_name)
-    files.download(file_name)
-    with resume_output:
-        print(f"'{file_name}' wurde generiert und der Download gestartet.")
-
-
-def on_generate_new_projects_click(b):
-    """Zeigt den Dialog zur Eingabe der zu generierenden Projekte an."""
-    generation_setup_container.layout.display = 'flex'
-    project_widgets_container.layout.display = 'none'
-
-def parse_ai_project_response(text):
-    """Parst die textuelle Antwort der KI in ein strukturiertes Projektdaten-Wörterbuch."""
-    project_data = {
-        "ZEITRAUM": "Unbekannt",
-        "Kurzbeschreibung": [],
-        "BRANCHE": "Unbekannt"
-    }
-
-    # Extrahiert den Zeitraum
-    zeitraum_match = re.search(r"ZEITRAUM:\s*(.*)", text)
-    if zeitraum_match:
-        project_data["ZEITRAUM"] = zeitraum_match.group(1).strip()
-
-    # Extrahiert die Branche
-    branche_match = re.search(r"BRANCHE:\s*(.*)", text)
-    if branche_match:
-        project_data["BRANCHE"] = branche_match.group(1).strip()
-
-    # Extrahiert die Kurzbeschreibung
-    kurzbeschreibung_match = re.search(r"KURZBESCHREIBUNG:\s*([\s\S]*)", text)
-    if kurzbeschreibung_match:
-        # Nimmt den gesamten Block nach "KURZBESCHREIBUNG:"
-        desc_block = kurzbeschreibung_match.group(1)
-        # Teilt in Zeilen
-        lines = desc_block.split('\n')
-        cleaned_lines = []
-        for line in lines:
-            # Ignoriert die Zeile, wenn sie fälschlicherweise die Branche enthält
-            if not line.strip().upper().startswith("BRANCHE:"):
-                # entfernt leere Zeilen und Aufzählungszeichen
-                cleaned_line = re.sub(r'^\s*[-•*]\s*', '', line).strip()
-                if cleaned_line:
-                    cleaned_lines.append(cleaned_line)
-        project_data["Kurzbeschreibung"] = cleaned_lines
-
-    return project_data
-
-def on_start_generation_click(b):
-    """Startet den Prozess zur Generierung neuer Projekte basierend auf den Benutzereingaben."""
-    roles_text = roles_input.value
-    if not roles_text.strip():
-        status_label.value = "Bitte geben Sie mindestens eine Projektrolle ein."
-        return
-
-    roles_list = [role.strip() for role in roles_text.split(',') if role.strip()]
-
-    b.disabled = True
-    b.description = "Generiere..."
-    status_label.value = ""
-
-    newly_generated_projects = []
-
-    try:
-        for i, role in enumerate(roles_list):
-            status_label.value = f"Generiere Projekt {i+1}/{len(roles_list)} für Rolle: '{role}'..."
-
-            prompt = (f"Erstelle ein komplettes, realistisches IT-Projekt für einen deutschen Lebenslauf. Die Projektrolle ist '{role}'.\n"
-                      "Generiere die folgenden Informationen und gib sie exakt in diesem Format mit den englischen Schlüsselwörtern zurück:\n\n"
-                      "ZEITRAUM: [Ein realistischer Zeitraum von ca. 1 Jahr in der Vergangenheit im Format MM/JJJJ - MM/JJJJ]\n"
-                      "KURZBESCHREIBUNG:\n"
-                      "- [Stichpunkt 1]\n"
-                      "- [Stichpunkt 2]\n"
-                      "- [Stichpunkt 3]\n"
-                      "... (10-15 Stichpunkte)\n"
-                      "BRANCHE: [Eine passende Branche und ein fiktiver, mittelständischer deutscher Firmenname im Format 'Industrie (Firmenname)']\n\n"
-                      "WICHTIG: Achte auf Abwechslung bei der Wahl der Branche und des Unternehmens. Nutze nicht immer die gleichen. "
-                      "Beispiele für Branchen sind: Logistik, Gesundheitswesen, Einzelhandel, Finanzdienstleistungen, Medien, Energiewirtschaft, Maschinenbau.")
-
-            response = model.generate_content(prompt)
-
-            # Parsen der Antwort
-            parsed_data = parse_ai_project_response(response.text)
-            parsed_data['Projektrolle'] = role # Fügt die ursprüngliche Rolle hinzu
-            newly_generated_projects.append(parsed_data)
-
-            time.sleep(1) # Ratenbegrenzung vermeiden
-
-        # Alte Projekt-Widgets löschen und neue erstellen
-        project_widgets_list.clear()
-        render_project_widgets(new_data=newly_generated_projects, sort_now=False)
-
-        status_label.value = f"{len(newly_generated_projects)} Projekte wurden erfolgreich generiert!"
-
-    except Exception as e:
-        status_label.value = f"Ein Fehler ist aufgetreten: {e}"
-    finally:
-        b.disabled = False
-        b.description = "Generierung starten"
-        generation_setup_container.layout.display = 'none'
-        project_widgets_container.layout.display = 'flex'
-
-def on_generate_ai_description_click(b, projektrolle_widget, kurzbeschreibung_widget, branche_widget):
-    """Callback zur Generierung einer KI-Beschreibung und Branche für ein Projekt."""
-    projektrolle = projektrolle_widget.value
-    if not projektrolle:
-        kurzbeschreibung_widget.value = "Bitte zuerst eine Projektrolle eingeben."
-        return
-
-    b.description = "Generiere..."
-    b.disabled = True
-    try:
-        prompt = (f"Erstelle für die IT-Projektrolle '{projektrolle}' zwei Dinge:\n\n"
-                  "1. Eine professionelle, stichpunktartige Liste mit 10-15 typischen Aufgaben. "
-                  "Die Aufgaben sollen sich auf Bereiche wie 1st/2nd Level Support, Incident Management, Hardware- und Software-Support, "
-                  "Benutzerverwaltung, Systemwartung und Dokumentation konzentrieren. "
-                  "Einer der Stichpunkte MUSS die Bearbeitung von Anfragen in einem Ticketsystem wie 'ServiceNow' oder 'Matrix42' erwähnen. Nenne das System direkt. "
-                  "Wenn du Beispiele für Technologien oder Software gibst (z.B. 'Active Directory'), füge sie einfach mit einem Komma nach der Aufgabe an, ohne Formulierungen wie 'z.B. in' oder 'beispielsweise'. Beispiel: 'Verwaltung von Benutzerkonten und Berechtigungen, Active Directory'. "
-                  "Die Ausgabe soll nur die Stichpunkte enthalten, jeder in einer neuen Zeile, ohne Nummerierung oder einleitende Sätze.\n\n"
-                  "2. Eine passende, abwechslungsreiche Branche und einen realistischen, mittelständischen deutschen Firmennamen, bei dem diese Rolle existieren könnte. "
-                  "Gib dies in einer separaten, letzten Zeile im exakten Format 'Branche: [Industrie] ([Firmenname])' aus.\n\n"
-                  "Beginne direkt mit dem ersten Stichpunkt.")
-
-        response = model.generate_content(prompt)
-
-        lines = response.text.strip().split('\n')
-        description_lines = []
-        branche_line = ""
-
-        for line in lines:
-            if line.strip().upper().startswith("BRANCHE:"):
-                branche_line = line.strip().replace("Branche: ", "")
-            else:
-                cleaned_line = line.replace('•', '').replace('*', '').strip()
-                if cleaned_line:
-                    description_lines.append(cleaned_line)
-
-        kurzbeschreibung_widget.value = "\n".join(description_lines)
-        if branche_line:
-            branche_widget.value = branche_line
-
-    except Exception as e:
-        kurzbeschreibung_widget.value = f"Fehler bei der KI-Anfrage: {e}"
-    finally:
-        b.description = "KI-Stichpunkte"
-        b.disabled = False
-        update_markdown_preview()
-
-def on_generate_all_ai_descriptions_click(b):
-    """Generiert KI-Beschreibungen und Branchen für alle Projekte in der Liste."""
-    b.description = "Generiere..."
-    b.disabled = True
-    status_label.value = ""
-    try:
-        num_projects = len(project_widgets_list)
-        for i, pw_dict in enumerate(project_widgets_list):
-            projektrolle_widget = pw_dict.get('Projektrolle')
-            kurzbeschreibung_widget = pw_dict.get('Kurzbeschreibung')
-            branche_widget = pw_dict.get('BRANCHE')
-
-            status_label.value = f"Generiere Beschreibung für Projekt {i+1}/{num_projects}..."
-
-            if not projektrolle_widget or not kurzbeschreibung_widget or not branche_widget or not projektrolle_widget.value:
-                continue
-
-            projektrolle = projektrolle_widget.value
-            prompt = (f"Erstelle für die IT-Projektrolle '{projektrolle}' zwei Dinge:\n\n"
-                      "1. Eine professionelle, stichpunktartige Liste mit 10-15 typischen Aufgaben. "
-                      "Wenn du Beispiele für Technologien oder Software gibst (z.B. 'Active Directory'), füge sie einfach mit einem Komma nach der Aufgabe an, ohne Formulierungen wie 'z.B. in'.\n"
-                      "2. Eine passende, abwechslungsreiche Branche und einen realistischen, mittelständischen deutschen Firmennamen. Nutze nicht immer die gleichen Branchen. Gib dies in einer separaten, letzten Zeile im exakten Format 'Branche: [Industrie] ([Firmenname])' aus.\n\n"
-                      "Beginne direkt mit dem ersten Stichpunkt.")
-            try:
-                response = model.generate_content(prompt)
-
-                lines = response.text.strip().split('\n')
-                description_lines = []
-                branche_line = ""
-
-                for line in lines:
-                    if line.strip().upper().startswith("BRANCHE:"):
-                        branche_line = line.strip().replace("Branche: ", "")
-                    else:
-                        cleaned_line = line.replace('•', '').replace('*', '').strip()
-                        if cleaned_line:
-                            description_lines.append(cleaned_line)
-
-                kurzbeschreibung_widget.value = "\n".join(description_lines)
-                if branche_line:
-                    branche_widget.value = branche_line
-
-            except Exception as e:
-                kurzbeschreibung_widget.value = f"Fehler: {e}"
-
-            status_label.value = f"Beschreibung für Projekt {i+1}/{num_projects} fertig. Warte 1 Sekunde..."
-            time.sleep(1)
-    finally:
-        b.description = "KI-Stichpunkte für alle"
-        b.disabled = False
-        status_label.value = "Alle Projekte wurden aktualisiert!"
-        update_markdown_preview()
-
-def create_project_widgets(project_data, project_index):
-    """Erstellt und gibt ein Wörterbuch mit Widgets für ein einzelnes Projekt zurück."""
-    widgets_dict = {}
-
-    project_title = widgets.HTML(f"Projekt {project_index + 1}")
-
-    normalized_zeitraum = project_data.get('ZEITRAUM', '').replace(' – ', ' - ')
-    zeitraum_input = widgets.Text(value=normalized_zeitraum, description='Zeitraum:', layout=widgets.Layout(width='auto'))
-
-    projektrolle_input = widgets.Text(value=project_data.get('Projektrolle', ''), description='Projektrolle:', layout=widgets.Layout(flex='1 1 auto', width='auto'))
-
-    kurzbeschreibung_input = widgets.Textarea(
-        value="\n".join(project_data.get('Kurzbeschreibung', [])),
-        description='Kurzbeschreibung:',
-        rows=8,
-        layout=widgets.Layout(width='auto')
-    )
-
-    branche_input = widgets.Text(value=project_data.get('BRANCHE', ''), description='Branche:', layout=widgets.Layout(width='auto'))
-
-    # Widgets zum Wörterbuch hinzufügen
-    widgets_dict['ZEITRAUM'] = zeitraum_input
-    widgets_dict['Projektrolle'] = projektrolle_input
-    widgets_dict['Kurzbeschreibung'] = kurzbeschreibung_input
-    widgets_dict['BRANCHE'] = branche_input
-
-    # --- Individuelle KI-Buttons ---
-    generate_desc_button = widgets.Button(description='KI-Stichpunkte', button_style='primary', tooltip='Generiert Stichpunkte aus Rolle', icon='cogs', layout=widgets.Layout(width='150px'))
-    generate_desc_button.on_click(lambda b: on_generate_ai_description_click(b, projektrolle_input, kurzbeschreibung_input, branche_input))
-
-    if not ai_enabled:
-        generate_desc_button.disabled = True
-
-    delete_button = widgets.Button(description='Projekt löschen', button_style='danger', tooltip=f'Löscht Projekt {project_index + 1}', icon='trash', layout=widgets.Layout(width='auto'))
-    delete_button.on_click(lambda b: delete_project(project_index))
-
-    project_vbox = widgets.VBox([
-        project_title,
-        zeitraum_input,
-        projektrolle_input,
-        kurzbeschreibung_input,
-        widgets.HBox([generate_desc_button]),
-        branche_input,
-        widgets.HBox([delete_button]),
-        widgets.HTML("")
-    ])
-
-    widgets_dict['vbox'] = project_vbox
-    return widgets_dict
-
-
-def render_project_widgets(new_data=None, sort_now=True):
-    """Rendert alle Projekt-Widgets. Kann optional neue Daten zum Rendern annehmen."""
-    global project_widgets_list
-
-    if new_data is not None:
-        project_data_to_render = new_data
-    else:
-        project_data_to_render = []
-        for proj_widgets_dict in project_widgets_list:
-            data = {
-                'ZEITRAUM': proj_widgets_dict['ZEITRAUM'].value,
-                'Projektrolle': proj_widgets_dict['Projektrolle'].value,
-                'Kurzbeschreibung': [line.strip() for line in proj_widgets_dict['Kurzbeschreibung'].value.split('\n') if line.strip()],
-                'BRANCHE': proj_widgets_dict['BRANCHE'].value
+        .container {
+            text-align: left;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            max-width: 600px;
+            width: 100%;
+        }
+        h2 {
+            text-align: center;
+        }
+        label {
+            display: block;
+            margin: 10px 0 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin: 20px 0;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #output {
+            margin-top: 20px;
+            font-size: 16px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .error {
+            color: red;
+        }
+        .success {
+            color: green;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Personendaten eingeben</h2>
+        <label for="anrede">Anrede</label>
+        <select id="anrede">
+            <option value="" disabled>Wählen Sie...</option>
+            <option value="Herr" selected>Herr</option>
+            <option value="Frau">Frau</option>
+        </select>
+        <label for="vorname">Vorname</label>
+        <input type="text" id="vorname" placeholder="z.B. Hans">
+        <label for="nachname">Nachname</label>
+        <input type="text" id="nachname" placeholder="z.B. Mustermann">
+        <label for="geburtsdatum">Geburtsdatum</label>
+        <input type="date" id="geburtsdatum">
+        <label for="geburtsort">Geburtsort</label>
+        <input type="text" id="geburtsort" placeholder="z.B. Hamburg">
+        <label for="geburtsland">Geburtsland</label>
+        <input type="text" id="geburtsland" placeholder="z.B. Deutschland" value="Deutschland">
+        <label for="strasse">Postanschrift (Straße)</label>
+        <input type="text" id="strasse" placeholder="z.B. Musterstraße 1">
+        <label for="plzOrt">Postanschrift (PLZ Ort)</label>
+        <input type="text" id="plzOrt" placeholder="z.B. 12345 Musterstadt">
+        <label for="nationalitaet">Nationalität</label>
+        <input type="text" id="nationalitaet" placeholder="z.B. Deutsch" value="Deutsch">
+        <label for="email">E-Mail-Adresse privat</label>
+        <input type="email" id="email" placeholder="z.B. name@example.com">
+        <label for="telefon">Telefonnummer privat</label>
+        <input type="text" id="telefon" placeholder="z.B. +49123456789">
+        <label for="ausweisnummer">Ausweisnummer und Landesvorwahl</label>
+        <input type="text" id="ausweisnummer" placeholder="z.B. L01X00T47 und +49">
+        <button onclick="showPersonendaten()">Kopieren und bei WhatsApp senden</button>
+        <div id="output"></div>
+    </div>
+
+    <script>
+        async function showPersonendaten() {
+            const fields = [
+                { id: 'anrede', label: 'Anrede' },
+                { id: 'vorname', label: 'Vorname' },
+                { id: 'nachname', label: 'Nachname' },
+                { id: 'geburtsdatum', label: 'Geburtsdatum' },
+                { id: 'geburtsort', label: 'Geburtsort' },
+                { id: 'geburtsland', label: 'Geburtsland' },
+                { id: 'strasse', label: 'Postanschrift (Straße)' },
+                { id: 'plzOrt', label: 'Postanschrift (PLZ Ort)' },
+                { id: 'nationalitaet', label: 'Nationalität' },
+                { id: 'email', label: 'E-Mail-Adresse privat' },
+                { id: 'telefon', label: 'Telefonnummer privat' },
+                { id: 'ausweisnummer', label: 'Ausweisnummer und Landesvorwahl' }
+            ];
+
+            let outputText = '';
+            let hasEmptyField = false;
+
+            fields.forEach(field => {
+                const value = document.getElementById(field.id).value.trim();
+                if (!value) {
+                    hasEmptyField = true;
+                }
+                if (field.id === 'geburtsdatum' && value) {
+                    const [year, month, day] = value.split('-');
+                    outputText += `${field.label}: ${day}.${month}.${year}\n`;
+                } else {
+                    outputText += `${field.label}: ${value || '-'}\n`;
+                }
+            });
+
+            if (hasEmptyField) {
+                const outputDiv = document.getElementById('output');
+                outputDiv.textContent = 'Bitte fülle alle Felder aus!';
+                outputDiv.className = 'error';
+                return;
             }
-            project_data_to_render.append(data)
 
-    if sort_now:
-        project_data_to_render = sorted(project_data_to_render, key=get_project_sort_key, reverse=True)
+            try {
+                await navigator.clipboard.writeText(outputText);
+                const outputDiv = document.getElementById('output');
+                outputDiv.textContent = 'Die Daten wurden kopiert und an WhatsApp übergeben.';
+                outputDiv.className = 'success';
+            } catch (err) {
+                // Fallback für ältere oder eingeschränkte Browser
+                const textarea = document.createElement('textarea');
+                textarea.value = outputText;
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    document.execCommand('copy');
+                    const outputDiv = document.getElementById('output');
+                    outputDiv.textContent = 'Die Daten wurden (Fallback) kopiert und an WhatsApp übergeben.';
+                    outputDiv.className = 'success';
+                } catch (err2) {
+                    const outputDiv = document.getElementById('output');
+                    outputDiv.textContent = 'Konnte nicht kopieren. Bitte manuell kopieren.';
+                    outputDiv.className = 'error';
+                }
+                document.body.removeChild(textarea);
+            }
 
-    project_widgets_list.clear()
-    new_children_tuple = ()
-    for i, project_data in enumerate(project_data_to_render):
-        new_widgets_dict = create_project_widgets(project_data, i)
-        project_widgets_list.append(new_widgets_dict)
-        new_children_tuple += (new_widgets_dict['vbox'],)
-        for widget_key, widget_instance in new_widgets_dict.items():
-            if widget_key != 'vbox' and hasattr(widget_instance, 'observe'):
-                widget_instance.observe(on_change_update_preview, names='value')
-
-    project_widgets_container.children = new_children_tuple
-    update_markdown_preview()
-
-
-def add_project(b):
-    """Fügt ein neues leeres Projekt zur Liste hinzu."""
-    new_project_data = {
-        "ZEITRAUM": "MM/JJJJ - Aktuell",
-        "Projektrolle": "Neue Projektrolle",
-        "Kurzbeschreibung": ["Neue Beschreibung"],
-        "BRANCHE": "Neue Branche"
-    }
-    current_data = [
-        {
-            'ZEITRAUM': pw_dict['ZEITRAUM'].value,
-            'Projektrolle': pw_dict['Projektrolle'].value,
-            'Kurzbeschreibung': [line.strip() for line in pw_dict['Kurzbeschreibung'].value.split('\n') if line.strip()],
-            'BRANCHE': pw_dict['BRANCHE'].value
-        } for pw_dict in project_widgets_list
-    ]
-    render_project_widgets(new_data=[new_project_data] + current_data, sort_now=False)
-
-
-def delete_project(index_to_delete):
-    """Löscht ein Projekt aus der Liste."""
-    if 0 <= index_to_delete < len(project_widgets_list):
-        del project_widgets_list[index_to_delete]
-        render_project_widgets(new_data=None, sort_now=False)
-
-
-def update_markdown_preview():
-    """Liest die aktuellen Werte aus den Widgets und aktualisiert die Markdown-Vorschau."""
-    current_name = name_input.value
-    current_projects_data = []
-    all_project_roles = set()
-    all_branches = set()
-    earliest_date = None
-    for proj_widgets_dict in project_widgets_list:
-        zeitraum_str = proj_widgets_dict['ZEITRAUM'].value.strip()
-        start_date_str = ''
-        if ' - ' in zeitraum_str:
-            start_date_str = zeitraum_str.split(' - ')[0].strip()
-        elif ' – ' in zeitraum_str:
-            start_date_str = zeitraum_str.split(' – ')[0].strip()
-        if start_date_str:
-            try:
-                month, year = map(int, start_date_str.split('/'))
-                current_project_date = datetime(year, month, 1)
-                if earliest_date is None or current_project_date < earliest_date:
-                    earliest_date = current_project_date
-            except ValueError: pass
-        project_data = {
-            'ZEITRAUM': zeitraum_str,
-            'Projektrolle': proj_widgets_dict['Projektrolle'].value,
-            'Kurzbeschreibung': [line.strip() for line in proj_widgets_dict['Kurzbeschreibung'].value.split('\n') if line.strip()],
-            'BRANCHE': proj_widgets_dict['BRANCHE'].value
+            const encodedText = encodeURIComponent(outputText);
+            const whatsappLink = `https://wa.me/?text=${encodedText}`;
+            window.open(whatsappLink, '_blank');
         }
-        current_projects_data.append(project_data)
-        if project_data['Projektrolle']: all_project_roles.add(project_data['Projektrolle'])
-        if project_data['BRANCHE']:
-            cleaned_branch = re.sub(r'\s*
-', '', project_data['BRANCHE']).strip()
-            if cleaned_branch: all_branches.add(cleaned_branch)
-    current_mitarbeiter_data = {
-        "Mitarbeiter": current_name,
-        "Stand": datetime.now().strftime("%m/%Y"),
-        "Geburtsjahr": mitarbeiter_widgets['Geburtsjahr'].value,
-        "Position": ", ".join(sorted(list(all_project_roles))),
-        "Ausbildung / Studium": mitarbeiter_widgets['Ausbildung / Studium'].value,
-        "Berufserfahrung in der IT seit": earliest_date.strftime("%m/%Y") if earliest_date else "N/A",
-        "Einsatz in Branchen": ", ".join(sorted(list(all_branches))),
-        "Fremdsprachen": mitarbeiter_widgets['Fremdsprachen'].value,
-        "Nationalität": mitarbeiter_widgets['Nationalität'].value,
-        "Führerschein": "Klasse B" if mitarbeiter_widgets['Führerschein'].value else ""
-    }
-    current_it_skills_data = {}
-    for key, widget in it_skills_widgets.items():
-        current_it_skills_data[key] = [line.strip() for line in widget.value.split('\n') if line.strip()]
-
-    sorted_projects_for_markdown = sorted(current_projects_data, key=get_project_sort_key, reverse=True)
-
-    with resume_output:
-        clear_output(wait=True)
-        display(Markdown(generate_resume_markdown(current_name, current_mitarbeiter_data, sorted_projects_for_markdown, current_it_skills_data)))
-
-
-# --- UI-Widgets-Initialisierung ---
-name_input = widgets.Text(value=original_resume_data["MITARBEITER"]["Mitarbeiter"], placeholder='Geben Sie hier einen Namen ein', description='Name:', disabled=False)
-resume_output = widgets.Output()
-download_button = widgets.Button(description='Als Word-Datei exportieren', button_style='success', tooltip='Exportiert den Lebenslauf als Word-Dokument', icon='file-word')
-add_project_button = widgets.Button(description='Projekt manuell hinzufügen', button_style='info', tooltip='Fügt ein neues, leeres Projekt hinzu', icon='plus', layout=widgets.Layout(width='auto'))
-update_button = widgets.Button(description='Projekte sortieren', button_style='warning', tooltip='Sortiert die Projekte nach Zeitraum (neuestes zuerst)', icon='arrows-rotate', layout=widgets.Layout(width='auto'))
-status_label = widgets.HTML(value="")
-
-# --- KI-Workflow-Buttons ---
-generate_new_projects_button = widgets.Button(description='Neue Projekte via KI erstellen', button_style='primary', tooltip='Startet den Dialog zur Generierung mehrerer KI-Projekte', icon='wand-magic-sparkles', layout=widgets.Layout(width='auto'))
-generate_all_descriptions_button = widgets.Button(description='KI-Stichpunkte für alle', button_style='primary', tooltip='Generiert Stichpunkte für alle existierenden Projekte', icon='cogs', layout=widgets.Layout(width='auto'))
-
-if not ai_enabled:
-    generate_new_projects_button.disabled = True
-    generate_all_descriptions_button.disabled = True
-
-# --- Dialog für neue Projekte ---
-roles_input = widgets.Textarea(value='Onsite Support, Rollout Techniker, 2nd Level Support', description='Projektrollen (kommagetrennt):', layout=widgets.Layout(width='95%', height='80px'))
-start_generation_button = widgets.Button(description='Generierung starten', button_style='success', icon='play', layout=widgets.Layout(width='auto'))
-generation_setup_container.children = [widgets.HTML("Neue Projekte durch KI erstellen"), roles_input, start_generation_button]
-
-
-def on_change_update_preview(change):
-    """Callback-Funktion, die bei jeder Änderung eines Eingabewertes ausgelöst wird."""
-    update_markdown_preview()
-
-# --- Event-Handler Zuweisung ---
-name_input.observe(on_change_update_preview, names='value')
-download_button.on_click(on_download_button_click)
-add_project_button.on_click(add_project)
-update_button.on_click(lambda b: render_project_widgets(new_data=None, sort_now=True))
-generate_new_projects_button.on_click(on_generate_new_projects_click)
-start_generation_button.on_click(on_start_generation_click)
-generate_all_descriptions_button.on_click(on_generate_all_ai_descriptions_click)
-
-
-# --- Mitarbeiter-Widgets ---
-mitarbeiter_widgets_container = widgets.VBox()
-mitarbeiter_heading = widgets.HTML("MITARBEITER")
-mitarbeiter_widgets_container.children += (mitarbeiter_heading,)
-mitarbeiter_widgets['Geburtsjahr'] = widgets.Text(value=original_resume_data["MITARBEITER"]["Geburtsjahr"], description='Geburtsjahr:', layout=widgets.Layout(width='auto'))
-mitarbeiter_widgets['Geburtsjahr'].observe(on_change_update_preview, names='value')
-mitarbeiter_widgets['Ausbildung / Studium'] = widgets.Text(value=original_resume_data["MITARBEITER"]["Ausbildung / Studium"], description='Ausbildung / Studium:', layout=widgets.Layout(width='auto'))
-mitarbeiter_widgets['Ausbildung / Studium'].observe(on_change_update_preview, names='value')
-mitarbeiter_widgets['Fremdsprachen'] = widgets.Textarea(value=original_resume_data["MITARBEITER"]["Fremdsprachen"], description='Fremdsprachen:', rows=2, layout=widgets.Layout(width='auto'))
-mitarbeiter_widgets['Fremdsprachen'].observe(on_change_update_preview, names='value')
-mitarbeiter_widgets['Führerschein'] = widgets.Checkbox(value=True if original_resume_data["MITARBEITER"]["Führerschein"] == "Klasse B" else False, description='Führerschein Klasse B', indent=False, layout=widgets.Layout(width='auto'))
-mitarbeiter_widgets['Führerschein'].observe(on_change_update_preview, names='value')
-mitarbeiter_widgets['Nationalität'] = widgets.Text(value=original_resume_data["MITARBEITER"]["Nationalität"], description='Nationalität:', layout=widgets.Layout(width='auto'))
-mitarbeiter_widgets['Nationalität'].observe(on_change_update_preview, names='value')
-mitarbeiter_widgets_container.children += (widgets.HTML(""),)
-
-# --- IT-Kenntnisse-Widgets ---
-it_skills_widgets_container = widgets.VBox()
-it_skills_heading = widgets.HTML("IT-FACHWISSEN UND SCHWERPUNKTE")
-it_skills_widgets_container.children += (it_skills_heading,)
-it_skills_order = ["Hardware", "Netzwerk", "Software", "Betriebssysteme"]
-for key in it_skills_order:
-    initial_value = "\n".join(original_resume_data["IT-FACHWISSEN UND SCHWERPUNKTE"][key])
-    it_skills_input = widgets.Textarea(value=initial_value, description=f'{key}:', rows=3, layout=widgets.Layout(width='auto'))
-    it_skills_widgets[key] = it_skills_input
-    it_skills_widgets_container.children += (it_skills_input,)
-    it_skills_input.observe(on_change_update_preview, names='value')
-it_skills_widgets_container.children += (widgets.HTML(""),)
-
-# --- Initiale Darstellung ---
-render_project_widgets(new_data=original_resume_data["PROJEKTE"])
-
-# --- UI anzeigen ---
-project_buttons_hbox = widgets.HBox([generate_new_projects_button, add_project_button, update_button, generate_all_descriptions_button])
-display(name_input, download_button)
-if not ai_enabled:
-    display(ai_error_message)
-display(mitarbeiter_widgets_container, it_skills_widgets_container, project_buttons_hbox, status_label, generation_setup_container, project_widgets_container, resume_output)
-
-update_markdown_preview()
-
-     
+    </script>
+</body>
+</html>
